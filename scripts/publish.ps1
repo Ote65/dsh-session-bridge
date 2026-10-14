@@ -78,8 +78,13 @@ Write-Host "[4/5] commit and push"
 if (-not (Test-Path -LiteralPath (Join-Path $root '.git'))) {
   & git -C $root init -b main | Out-Null
 }
-& git -C $root config user.name  ($me.name  ?? $me.login)
-& git -C $root config user.email ($me.email ?? "$($me.login)@users.noreply.github.com")
+# Windows PowerShell 5.1 has no null-coalescing operator, so spell the fallbacks out.
+$userName = $me.name
+if ([string]::IsNullOrWhiteSpace($userName)) { $userName = $me.login }
+$userEmail = $me.email
+if ([string]::IsNullOrWhiteSpace($userEmail)) { $userEmail = "$($me.login)@users.noreply.github.com" }
+& git -C $root config user.name  $userName
+& git -C $root config user.email $userEmail
 & git -C $root add -A
 $staged = & git -C $root diff --cached --name-only
 if ($staged) { & git -C $root commit -m 'feat: dsh-session-bridge — hand a DSH session to another Agent' | Out-Null }
