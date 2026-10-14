@@ -93,11 +93,16 @@ if ($staged) { & git -C $root commit -m 'feat: dsh-session-bridge - hand a DSH s
 else { Write-Host '      nothing new to commit' }
 
 $remote = "https://x-access-token:$token@github.com/$Owner/$Repo.git"
-& git -C $root remote remove origin 2>$null | Out-Null
-& git -C $root remote add origin $remote
+# Native commands write warnings to stderr; without this, PowerShell 5.1 promotes
+# them to terminating errors under ErrorActionPreference='Stop'.
+$ErrorActionPreference = 'Continue'
+& git -C $root remote get-url origin *> $null
+if ($LASTEXITCODE -eq 0) { & git -C $root remote set-url origin $remote *> $null }
+else { & git -C $root remote add origin $remote *> $null }
 & git -C $root push -u origin main --force-with-lease 2>&1 | ForEach-Object { "      $_" }
 # Leave no credential in the checkout.
-& git -C $root remote set-url origin "https://github.com/$Owner/$Repo.git"
+& git -C $root remote set-url origin "https://github.com/$Owner/$Repo.git" *> $null
+$ErrorActionPreference = 'Stop'
 Write-Host "      pushed to https://github.com/$Owner/$Repo"
 
 Write-Host "[5/5] star it"
