@@ -1,7 +1,7 @@
-# Publishes this repository to GitHub and stars it.
+﻿# Publishes this repository to GitHub and stars it.
 #
 #   $env:GITHUB_TOKEN = '<fine-grained PAT with "Administration: read+write" for the
-#                        target repo owner, plus "starring" — or a classic token with
+#                        target repo owner, plus "starring" - or a classic token with
 #                        the `public_repo` scope>'
 #   pwsh ./scripts/publish.ps1 -Owner <github-account>
 #
@@ -13,7 +13,7 @@
 param(
   [Parameter(Mandatory = $true)][string]$Owner,
   [string]$Repo = 'dsh-session-bridge',
-  [string]$Description = 'Hand one DeepSeek Harness session to another Agent (Codex, Trae, …) over a loopback HTTP bridge.',
+  [string]$Description = 'Hand one DeepSeek Harness session to another Agent (Codex, Trae, ...) over a loopback HTTP bridge.',
   [switch]$Private,
   [switch]$NoStar
 )
@@ -87,7 +87,7 @@ if ([string]::IsNullOrWhiteSpace($userEmail)) { $userEmail = "$($me.login)@users
 & git -C $root config user.email $userEmail
 & git -C $root add -A
 $staged = & git -C $root diff --cached --name-only
-if ($staged) { & git -C $root commit -m 'feat: dsh-session-bridge — hand a DSH session to another Agent' | Out-Null }
+if ($staged) { & git -C $root commit -m 'feat: dsh-session-bridge - hand a DSH session to another Agent' | Out-Null }
 else { Write-Host '      nothing new to commit' }
 
 $remote = "https://x-access-token:$token@github.com/$Owner/$Repo.git"
@@ -104,12 +104,12 @@ if ($NoStar) {
 } else {
   try {
     Invoke-RestMethod -Method PUT -Uri "$api/user/starred/$Owner/$Repo" -Headers $headers | Out-Null
-    Write-Host '      starred ✓'
+    Write-Host '      starred OK'
   } catch {
     Write-Host "      star failed: $($_.Exception.Message)"
   }
 }
 
 Write-Host ''
-Write-Host "Done → https://github.com/$Owner/$Repo"
-Write-Host 'Next: enable Pages (Settings → Pages → Deploy from branch → main /docs) to serve docs/index.html.'
+Write-Host "Done -> https://github.com/$Owner/$Repo"
+Write-Host 'Next: enable Pages (Settings -> Pages -> Deploy from branch -> main /docs) to serve docs/index.html.'
