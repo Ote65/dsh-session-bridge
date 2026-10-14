@@ -1,0 +1,10 @@
+# Keep the repository LF-only regardless of the authoring platform.
+* text=auto eol=lf
+
+# Windows helper scripts keep CRLF so they run as-is in PowerShell.
+*.ps1 text eol=crlf
+
+# Binary-ish assets, never normalised.
+*.png binary
+*.jpg binary
+*.ico binary
