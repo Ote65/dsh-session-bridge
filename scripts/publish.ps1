@@ -1,4 +1,4 @@
-﻿# Publishes this repository to GitHub and stars it.
+# Publishes this repository to GitHub and stars it.
 #
 #   $env:GITHUB_TOKEN = '<fine-grained PAT with "Administration: read+write" for the
 #                        target repo owner, plus "starring" - or a classic token with
@@ -54,7 +54,9 @@ foreach ($relative in @('README.md', 'docs/index.html', 'package.json')) {
   $path = Join-Path $root $relative
   if (-not (Test-Path -LiteralPath $path)) { continue }
   $text = [System.IO.File]::ReadAllText($path)
-  $next = $text.Replace('OWNER', $Owner)
+  # Only URL contexts carry the placeholder, so prose that mentions `OWNER`
+  # stays correct after publishing.
+  $next = $text.Replace('github.com/OWNER/', "github.com/$Owner/").Replace('/starred/OWNER/', "/starred/$Owner/")
   if ($next -ne $text) {
     [System.IO.File]::WriteAllText($path, $next)
     $changed++

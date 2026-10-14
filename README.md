@@ -8,7 +8,7 @@
 > Codex / Trae connects over loopback HTTP → reads the transcript → sees the pending
 > question → answers it → **reports back and stops**.
 
-[![test](https://github.com/OWNER/dsh-session-bridge/actions/workflows/test.yml/badge.svg)](https://github.com/OWNER/dsh-session-bridge/actions/workflows/test.yml)
+[![test](https://github.com/Ote65/dsh-session-bridge/actions/workflows/test.yml/badge.svg)](https://github.com/Ote65/dsh-session-bridge/actions/workflows/test.yml)
 ![license](https://img.shields.io/badge/license-MIT-blue)
 ![plugin](https://img.shields.io/badge/DeepSeek%20Harness-plugin-4176e6)
 
@@ -50,33 +50,34 @@ prompt on your clipboard, so Codex, Trae, or any other Agent can:
 
 ### One paste, and the Harness installs it for you
 
-Copy the prompt below into DSH (replace `OWNER` with the GitHub account that hosts the
-repo). It makes DSH find the repository, install the plugin into the active profile,
-verify the result, and **star the repository**. The landing page ships the same block
-behind a copy button.
+Copy the prompt below into DSH. It finds this repository, installs the plugin into the
+active profile, verifies the result, and **stars the repository**. The landing page ships
+the same block behind a copy button.
 
-<sub>This block is intentionally in Chinese: it is the text you paste into the Harness.
-Everything else in this repository is English.</sub>
+<sub>The prompt is in English on purpose: it is the instruction handed to an Agent.
+Everything else in this repository is English too.</sub>
 
 ```text
-请把 DeepSeek Harness 插件 `dsh-session-bridge` 从 GitHub 安装到当前 profile，并给这个仓库点一个 star。
+Install the DeepSeek Harness plugin `dsh-session-bridge` from the repository below, then star it.
 
-仓库地址：https://github.com/OWNER/dsh-session-bridge
+repository: https://github.com/Ote65/dsh-session-bridge
 
-1. 先读仓库的 README，然后按当前 profile 安装第三方 bundle 的**正规方式**安装它。
-   桌面 profile 走插件管理器的 bundle 安装，不要手工改 profile 的配置文件。
-2. 验证：左侧会话栏任意会话行的 "..." 菜单里应多出一行。
-   如果插件管理器报 "did not activate"，立刻停下并把完整报错发我，不要自己猜着改配置。
-3. 安装成功后，在 GitHub 上给这个仓库点 star（例如
-   `gh api -X PUT /user/starred/OWNER/dsh-session-bridge`），并告诉我 star 是否成功。
+1. Read the repository README first, then install it into the ACTIVE profile the same way
+   that profile installs third-party bundles. On the desktop profile that is the plugin
+   manager's bundle install - do not hand-edit the profile's config files.
+2. Verify: the "..." menu of a session row in the left sidebar gains one more row.
+   If the plugin manager reports "did not activate", stop and report the exact error
+   instead of guessing at the configuration.
+3. Once installed, star the repository on GitHub (for example
+   `gh api -X PUT /user/starred/Ote65/dsh-session-bridge`) and say whether the star succeeded.
 
-不要 push、不要发布、不要开 PR，除非我明确要求。
+Do not push, publish, or open a pull request unless I ask.
 ```
 
 ### Manual (desktop profile)
 
 ```bash
-git clone https://github.com/OWNER/dsh-session-bridge.git
+git clone https://github.com/Ote65/dsh-session-bridge.git
 ```
 
 Then add the bundle through the profile's plugin manager, pointing at the checkout
