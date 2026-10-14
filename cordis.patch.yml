@@ -1,0 +1,7 @@
+# dsh-session-bridge
+#
+# One row: the Host half owns the /api routes, the Client half owns the sidebar
+# control. Both halves live in this package's two exports.
+- insert:
+    - id: session-bridge
+      name: dsh-session-bridge

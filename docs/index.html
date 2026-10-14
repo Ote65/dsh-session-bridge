@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dsh-session-bridge — hand a DeepSeek Harness session to another Agent</title>
+<meta name="description" content="A DeepSeek Harness plugin that publishes one session over a loopback HTTP bridge and puts a paste-ready handoff prompt on your clipboard, so Codex, Trae or any other Agent can read it, answer its questions, and stop.">
+<style>
+  :root{
+    --bg:#0f1115; --bg1:#16181d; --bg2:#1c1f26;
+    --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+    --fg:#f2f4f7; --fg2:#a9aeb8; --fg3:#7a808a;
+    --brand:#4176e6; --brand2:#7aaaff;
+    --ok:#35c07a; --warn:#e0a33c;
+    --r:12px; --r2:16px;
+    --dur:18s;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--bg); color:var(--fg); font:15px/1.65 var(--sans);
+    -webkit-font-smoothing:antialiased;
+    background-image:radial-gradient(circle at 20% -10%,rgba(65,118,230,.16),transparent 45%),
+                     radial-gradient(circle at 90% 0%,rgba(122,170,255,.10),transparent 40%);
+    background-repeat:no-repeat;
+  }
+  a{color:var(--brand2);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+  code,kbd{font-family:var(--mono);font-size:.88em}
+
+  /* ---------- header ---------- */
+  header{padding:64px 0 8px;text-align:center}
+  .kicker{display:inline-flex;align-items:center;gap:8px;padding:5px 12px;border:1px solid var(--line2);
+    border-radius:999px;color:var(--fg2);font-size:12px;letter-spacing:.02em}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--ok);box-shadow:0 0 10px var(--ok)}
+  h1{margin:18px 0 0;font-size:40px;line-height:1.15;letter-spacing:-.02em}
+  h1 span{color:var(--brand2)}
+  .lede{margin:14px auto 0;max-width:660px;color:var(--fg2);font-size:16px}
+  .badges{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:22px 0 0}
+  .badge{padding:4px 10px;border:1px solid var(--line2);border-radius:999px;color:var(--fg3);font-size:12px;font-family:var(--mono)}
+  .cta{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:26px 0 0}
+  .btn{padding:9px 16px;border-radius:10px;border:1px solid var(--line2);color:var(--fg);font-size:14px}
+  .btn.primary{background:var(--brand);border-color:transparent;color:#fff;font-weight:500}
+  .btn:hover{text-decoration:none;filter:brightness(1.08)}
+
+  /* ---------- the animated stage ---------- */
+  section{padding:44px 0}
+  h2{font-size:22px;letter-spacing:-.01em;margin:0 0 6px}
+  .sub{color:var(--fg3);font-size:14px;margin:0 0 22px}
+  .stage{
+    position:relative;border:1px solid var(--line);border-radius:var(--r2);
+    background:linear-gradient(180deg,var(--bg1),#121419);
+    padding:26px 22px 18px;overflow:hidden;
+  }
+  .lanes{display:grid;grid-template-columns:280px 1fr 260px;gap:14px;align-items:stretch;min-height:330px}
+  @media (max-width:900px){ .lanes{grid-template-columns:1fr} }
+
+  .panel{border:1px solid var(--line);border-radius:var(--r);background:var(--bg2);padding:12px}
+  .panel h3{margin:0 0 10px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg3);font-weight:600}
+
+  /* the mock sidebar */
+  .row{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;border:1px solid transparent}
+  .row + .row{margin-top:4px}
+  .row.sel{background:rgba(65,118,230,.12);border-color:rgba(65,118,230,.35)}
+  .row .title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+  .row .meta{color:var(--fg3);font-size:11px}
+  .dots{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;color:var(--fg2);
+    border:1px solid var(--line2);animation:dotsPing var(--dur) linear infinite}
+  @keyframes dotsPing{
+    0%,3%{border-color:var(--line2);color:var(--fg2);transform:scale(1)}
+    5%,9%{border-color:var(--brand);color:var(--brand2);transform:scale(1.12)}
+    14%,100%{border-color:var(--line2);color:var(--fg2);transform:scale(1)}
+  }
+  .menu{margin-top:8px;border:1px solid var(--line2);border-radius:12px;background:#141721;
+    box-shadow:0 18px 40px rgba(0,0,0,.45);padding:6px;transform-origin:top right;
+    animation:menuPop var(--dur) linear infinite}
+  @keyframes menuPop{
+    0%,5%{opacity:0;transform:translateY(-6px) scale(.97)}
+    9%,72%{opacity:1;transform:none}
+    78%,100%{opacity:0;transform:translateY(-6px) scale(.97)}
+  }
+  .mi{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:8px;color:var(--fg2);font-size:13px}
+  .mi svg{flex:none;opacity:.75}
+  .mi.action{color:var(--fg);animation:miAction var(--dur) linear infinite}
+  @keyframes miAction{
+    0%,11%{background:transparent;box-shadow:none}
+    14%,20%{background:rgba(65,118,230,.18);box-shadow:inset 0 0 0 1px rgba(65,118,230,.5)}
+    26%,100%{background:transparent;box-shadow:none}
+  }
+  .mi.action svg{animation:miRadar var(--dur) linear infinite}
+  @keyframes miRadar{
+    0%,13%{color:inherit;opacity:.75}
+    16%,22%{color:var(--brand2);opacity:1}
+    30%,100%{color:inherit;opacity:.75}
+  }
+  .sep{height:1px;background:var(--line);margin:5px 4px}
+
+  .toast{margin-top:10px;display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;
+    background:rgba(53,192,122,.14);color:var(--ok);font-size:12px;font-family:var(--mono);
+    animation:toastCopy var(--dur) linear infinite}
+  @keyframes toastCopy{
+    0%,20%{opacity:0;transform:translateY(4px)}
+    24%,34%{opacity:1;transform:none}
+    40%,100%{opacity:0;transform:translateY(4px)}
+  }
+
+  /* the wire + packets */
+  .wire{position:relative;display:flex;flex-direction:column;justify-content:center;gap:12px;padding:0 4px}
+  .link{position:relative;height:3px;border-radius:2px;background:linear-gradient(90deg,rgba(65,118,230,.15),rgba(65,118,230,.55),rgba(65,118,230,.15));
+    overflow:visible}
+  .link::after{content:"";position:absolute;inset:-6px 0;background:repeating-linear-gradient(90deg,rgba(122,170,255,.5) 0 6px,transparent 6px 14px);
+    opacity:.35;animation:dash 1.2s linear infinite;border-radius:4px}
+  @keyframes dash{ to{ background-position:20px 0 } }
+  .packet{position:absolute;top:50%;transform:translate(-50%,-50%);padding:3px 8px;border-radius:999px;
+    background:#0c0e13;border:1px solid rgba(122,170,255,.5);color:var(--brand2);
+    font:11px/1 var(--mono);white-space:nowrap;opacity:0}
+  @keyframes pktR{
+    0%,26%{left:0;opacity:0} 28%{opacity:1} 36%{left:100%;opacity:1} 38%,100%{left:100%;opacity:0}
+  }
+  @keyframes pktL{
+    0%,44%{left:100%;opacity:0} 46%{opacity:1} 54%{left:0;opacity:1} 56%,100%{left:0;opacity:0}
+  }
+  /* four lanes, each with its own request window */
+  .lane{position:relative}
+  .lane .packet{top:50%}
+  .lane:nth-child(1) .packet{animation:pktR var(--dur) linear infinite}
+  .lane:nth-child(2) .packet{animation:pktR var(--dur) linear infinite;animation-delay:calc(var(--dur) * .11)}
+  .lane:nth-child(3) .packet{animation:pktR var(--dur) linear infinite;animation-delay:calc(var(--dur) * .22)}
+  .lane:nth-child(4) .packet{animation:pktL var(--dur) linear infinite;animation-delay:calc(var(--dur) * .33)}
+  .lane .label{position:absolute;left:0;top:-14px;font:10px/1 var(--mono);color:var(--fg3);letter-spacing:.04em}
+
+  .bridge{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px}
+  .node{position:relative;width:132px;padding:12px 10px;border-radius:14px;border:1px solid rgba(65,118,230,.45);
+    background:radial-gradient(circle at 50% 0%,rgba(65,118,230,.22),transparent 70%),#12141b;text-align:center}
+  .node .nm{font:11px/1.4 var(--mono);color:var(--brand2)}
+  .node .pt{font:11px/1.4 var(--mono);color:var(--fg3)}
+  .node::before,.node::after{content:"";position:absolute;inset:0;border-radius:14px;border:1px solid rgba(65,118,230,.5);
+    animation:ripple 2.6s ease-out infinite}
+  .node::after{animation-delay:1.3s}
+  @keyframes ripple{ 0%{transform:scale(1);opacity:.7} 100%{transform:scale(1.35);opacity:0} }
+  .routes{margin-top:4px;font:10px/1.7 var(--mono);color:var(--fg3);text-align:center}
+  .routes b{color:var(--fg2);font-weight:500}
+
+  /* the external agent */
+  .agentcol{display:flex;flex-direction:column;gap:10px}
+  .agent{position:relative}
+  .agent .who{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--fg)}
+  .avatar{width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,#4176e6,#7aaaff);display:grid;place-items:center;font:600 10px/1 var(--sans);color:#fff}
+  .bubble{margin-top:9px;padding:9px 10px;border-radius:10px;background:#12141b;border:1px solid var(--line);font-size:12px;color:var(--fg2)}
+  .bubble code{color:var(--brand2)}
+  .promptcard{margin-top:10px;border:1px dashed rgba(122,170,255,.45);border-radius:10px;background:rgba(65,118,230,.07);
+    padding:9px 10px;font:11px/1.6 var(--mono);color:var(--fg2);animation:promptIn var(--dur) linear infinite}
+  @keyframes promptIn{
+    0%,22%{opacity:0;transform:translateY(6px)}
+    27%,74%{opacity:1;transform:none}
+    80%,100%{opacity:0;transform:translateY(6px)}
+  }
+  .qcard{margin-top:10px;border:1px solid var(--line2);border-radius:10px;background:#12141b;padding:9px 10px;
+    animation:qIn var(--dur) linear infinite}
+  @keyframes qIn{
+    0%,63%{opacity:0;transform:translateX(8px)}
+    68%,84%{opacity:1;transform:none}
+    88%,100%{opacity:0;transform:translateX(8px)}
+  }
+  .qcard .q{font-size:12px;color:var(--fg)}
+  .opt{margin-top:7px;display:flex;align-items:center;gap:7px;font-size:12px;color:var(--fg2);padding:5px 7px;border-radius:7px}
+  .opt.chosen{animation:optChoose var(--dur) linear infinite}
+  @keyframes optChoose{
+    0%,80%{background:transparent;color:var(--fg2);box-shadow:none}
+    84%,92%{background:rgba(53,192,122,.16);color:var(--ok);box-shadow:inset 0 0 0 1px rgba(53,192,122,.45)}
+    97%,100%{background:transparent;color:var(--fg2)}
+  }
+  .final{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ok);opacity:0;
+    animation:finalIn var(--dur) linear infinite}
+  @keyframes finalIn{
+    0%,92%{opacity:0;transform:translateY(4px)}
+    96%,100%{opacity:1;transform:none}
+  }
+
+  /* captions */
+  .captions{position:relative;height:26px;margin-top:16px;border-top:1px solid var(--line);padding-top:12px}
+  .cap{position:absolute;left:0;top:12px;font-size:13px;color:var(--fg2);opacity:0}
+  .cap b{color:var(--fg);font-weight:600}
+  .cap:nth-child(1){animation:c1 var(--dur) linear infinite}
+  .cap:nth-child(2){animation:c2 var(--dur) linear infinite}
+  .cap:nth-child(3){animation:c3 var(--dur) linear infinite}
+  .cap:nth-child(4){animation:c4 var(--dur) linear infinite}
+  .cap:nth-child(5){animation:c5 var(--dur) linear infinite}
+  .cap:nth-child(6){animation:c6 var(--dur) linear infinite}
+  @keyframes c1{0%,1%{opacity:0}3%,9%{opacity:1}11%,100%{opacity:0}}
+  @keyframes c2{0%,12%{opacity:0}14%,21%{opacity:1}23%,100%{opacity:0}}
+  @keyframes c3{0%,23%{opacity:0}25%,33%{opacity:1}35%,100%{opacity:0}}
+  @keyframes c4{0%,36%{opacity:0}38%,46%{opacity:1}48%,100%{opacity:0}}
+  @keyframes c5{0%,50%{opacity:0}52%,76%{opacity:1}78%,100%{opacity:0}}
+  @keyframes c6{0%,80%{opacity:0}83%,96%{opacity:1}99%,100%{opacity:0}}
+
+  /* ---------- cards ---------- */
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  @media (max-width:900px){ .grid{grid-template-columns:1fr} }
+  .card{border:1px solid var(--line);border-radius:var(--r);background:var(--bg1);padding:16px}
+  .card h4{margin:0 0 6px;font-size:14px}
+  .card p{margin:0;color:var(--fg2);font-size:13px}
+  .card .ico{width:26px;height:26px;border-radius:8px;background:rgba(65,118,230,.16);color:var(--brand2);
+    display:grid;place-items:center;margin-bottom:10px}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line)}
+  th{color:var(--fg3);font-size:12px;font-weight:500}
+  td code{color:var(--brand2)}
+  .method{font-family:var(--mono);font-size:11px;padding:2px 7px;border-radius:999px;border:1px solid var(--line2);color:var(--fg3)}
+  .method.post{color:var(--ok);border-color:rgba(53,192,122,.45);background:rgba(53,192,122,.10)}
+
+  pre{margin:0;padding:16px;border:1px solid var(--line);border-radius:var(--r);background:#0c0e13;overflow:auto;
+    font:12.5px/1.7 var(--mono);color:var(--fg2)}
+  pre .k{color:var(--brand2)}
+  .copybar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 10px}
+  .copybar span{color:var(--fg3);font-size:12px;font-family:var(--mono)}
+  footer{padding:40px 0 64px;color:var(--fg3);font-size:13px;text-align:center;border-top:1px solid var(--line);margin-top:24px}
+  .note{margin-top:12px;color:var(--fg3);font-size:12px}
+
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.001s !important;animation-iteration-count:1 !important}
+    .cap:nth-child(5){opacity:1}
+  }
+</style>
+</head>
+<body>
+
+<header class="wrap">
+  <span class="kicker"><span class="dot"></span> DeepSeek Harness plugin · MIT</span>
+  <h1>Hand a session to <span>another Agent</span></h1>
+  <p class="lede">
+    One row in the session menu. One click. Your clipboard gets a paste-ready prompt, and
+    Codex, Trae or any other Agent can read that session — its conversation, whether it is
+    running, what it is blocked on — <strong>and answer it</strong>.
+  </p>
+  <div class="badges">
+    <span class="badge">127.0.0.1:19388</span>
+    <span class="badge">no cookie · no header · URL is the credential</span>
+    <span class="badge">31/31 tests</span>
+  </div>
+  <div class="cta">
+    <a class="btn primary" href="#install">Install</a>
+    <a class="btn" href="#api">API</a>
+    <a class="btn" href="#how">How it works</a>
+  </div>
+</header>
+
+<section class="wrap">
+  <h2>What it does</h2>
+  <p class="sub">An 18-second loop. Watch the packets.</p>
+
+  <div class="stage">
+    <div class="lanes">
+
+      <!-- 1 · the DSH sidebar -->
+      <div class="panel">
+        <h3>DeepSeek Harness</h3>
+        <div class="row sel"><span class="meta">●</span><span class="title">Rendering kernel migration</span><span class="dots">⋯</span></div>
+        <div class="row"><span class="meta">●</span><span class="title">Official site update</span><span class="dots">⋯</span></div>
+        <div class="row"><span class="meta">●</span><span class="title">Multi-core renderer</span><span class="dots">⋯</span></div>
+
+        <div class="menu">
+          <div class="mi">Pin</div>
+          <div class="mi">Rename</div>
+          <div class="mi">Fork</div>
+          <div class="mi action">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true">
+              <circle cx="8" cy="8" r="5.6"/><circle cx="8" cy="8" r="2.6" opacity=".35"/>
+              <path d="M8 8 12.1 4.6" stroke-linecap="round"/><circle cx="10.6" cy="5.6" r="1.05" fill="currentColor" stroke="none"/>
+            </svg>
+            Expose session
+          </div>
+          <div class="sep"></div>
+          <div class="mi">Archive</div>
+        </div>
+
+        <div class="toast">✓ Copied — handoff prompt on the clipboard</div>
+      </div>
+
+      <!-- 2 · the wire -->
+      <div class="wire">
+        <div class="lane"><span class="label">GET /info</span><div class="link"></div><span class="packet">GET /info</span></div>
+        <div class="lane"><span class="label">GET /transcript</span><div class="link"></div><span class="packet">GET /transcript?since=0</span></div>
+        <div class="lane"><span class="label">GET /pending</span><div class="link"></div><span class="packet">GET /pending</span></div>
+        <div class="lane"><span class="label">POST /answer</span><div class="link"></div><span class="packet">POST /answer</span></div>
+        <div class="bridge">
+          <div class="node">
+            <div class="nm">session-bridge</div>
+            <div class="pt">127.0.0.1:19388</div>
+          </div>
+          <div class="routes">
+            <b>read</b> /info /status /transcript /pending<br>
+            <b>write</b> /answer /command
+          </div>
+        </div>
+      </div>
+
+      <!-- 3 · the other Agent -->
+      <div class="agentcol">
+        <div class="panel agent">
+          <h3>Codex / Trae</h3>
+          <div class="who"><span class="avatar">AI</span> external Agent</div>
+
+          <div class="promptcard">
+            handoff prompt pasted ✓<br>
+            <span style="color:var(--fg3)">read → decide → stop</span>
+          </div>
+
+          <div class="bubble">
+            reading <code>/transcript</code> …<br>
+            128 events · cwd <code>E:\OltraZ1.1</code>
+          </div>
+
+          <div class="qcard">
+            <div class="q">The worker has uncommitted changes — what should it do?</div>
+            <div class="opt">Use --allow-dirty</div>
+            <div class="opt chosen">✓ Commit it first, then release</div>
+          </div>
+
+          <div class="final">✓ reported to the user — stopped</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="captions">
+      <p class="cap"><b>1 ·</b> Hover a session row and open its <b>⋯</b> menu.</p>
+      <p class="cap"><b>2 ·</b> Choose <b>Expose session</b> — a bridge is minted for exactly that session.</p>
+      <p class="cap"><b>3 ·</b> A handoff prompt lands on your <b>clipboard</b>. No token to copy.</p>
+      <p class="cap"><b>4 ·</b> Paste it into Codex / Trae. The URL <em>is</em> the credential.</p>
+      <p class="cap"><b>5 ·</b> The Agent reads <code>/info</code> → <code>/transcript</code> → <code>/pending</code>, and sees the question.</p>
+      <p class="cap"><b>6 ·</b> It answers with <b>POST /answer</b> — the session resumes — then reports back and <b>stops</b>.</p>
+    </div>
+  </div>
+</section>
+
+<section class="wrap">
+  <h2>Why it is built this way</h2>
+  <p class="sub">Two traps this plugin exists to avoid.</p>
+  <div class="grid">
+    <div class="card">
+      <div class="ico">⇄</div>
+      <h4>Its own listener</h4>
+      <p>DSH's web server answers an outside caller with <b>404</b> outside <code>/api</code> and
+      <b>401 unauthorized</b> inside it. So the bridge runs its own <code>node:http</code> listener
+      on loopback, and the URL carries the capability.</p>
+    </div>
+    <div class="card">
+      <div class="ico">✓</div>
+      <h4>A real self-check</h4>
+      <p>Before handing over a prompt, <code>/expose</code> fetches its own URL over a
+      <b>real TCP socket</b>. If it is not <code>200</code>, no prompt is copied — you get the
+      status code instead of a dead link.</p>
+    </div>
+    <div class="card">
+      <div class="ico">■</div>
+      <h4>It tells the Agent to stop</h4>
+      <p>The prompt is explicit: read, report, stop. Do not hunt for the auth implementation,
+      guess other URLs, or scan ports — that is a dead end that burns tokens.</p>
+    </div>
+  </div>
+</section>
+
+<section class="wrap" id="api">
+  <h2>API</h2>
+  <p class="sub">Everything is reachable with <code>curl</code>. No cookie, no header, no token.</p>
+  <table>
+    <thead><tr><th>Route</th><th>Method</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td><code>/session-bridge/expose</code>?sessionId=…</td><td><span class="method">GET</span></td><td>mint (or reuse) an exposure; returns the discovery document + prompt</td></tr>
+      <tr><td><code>/session-bridge/info</code>?bridge=…</td><td><span class="method">GET</span></td><td>discovery document — cwd, model, <code>seq</code>, endpoints</td></tr>
+      <tr><td><code>/session-bridge/status</code>?bridge=…</td><td><span class="method">GET</span></td><td>live? running? current <code>seq</code></td></tr>
+      <tr><td><code>/session-bridge/transcript</code>?bridge=…&amp;since=N</td><td><span class="method">GET</span></td><td>the conversation, incrementally</td></tr>
+      <tr><td><code>/session-bridge/pending</code>?bridge=…</td><td><span class="method">GET</span></td><td>the pending question <b>with its options</b>, or <code>null</code></td></tr>
+      <tr><td><code>/session-bridge/answer</code></td><td><span class="method post">POST</span></td><td><code>{ bridge, callId?, answers:[{ id, selected:[label], custom? }] }</code></td></tr>
+      <tr><td><code>/session-bridge/command</code></td><td><span class="method post">POST</span></td><td><code>{ bridge, line: "/compact" }</code></td></tr>
+      <tr><td><code>/session-bridge/revoke</code>?bridge=…</td><td><span class="method">GET</span></td><td>drop one exposure</td></tr>
+    </tbody>
+  </table>
+  <p class="note">Cursor contract: send the <code>seq</code> from one response back as the next request's
+    <code>since</code>. <code>snapshotEvents</code> is half-open and <code>session.seq</code> is the next offset — no <code>+1</code>, no guessing.</p>
+</section>
+
+<section class="wrap" id="install">
+  <h2>Install</h2>
+  <p class="sub">Paste this into DeepSeek Harness. It installs the plugin from GitHub <b>and stars the repo</b>.</p>
+  <p class="note" style="margin:0 0 10px">The block below is in Chinese on purpose — it is the text you paste into the Harness. The rest of this page is English.</p>
+  <div class="copybar">
+    <span>install-prompt.txt</span>
+    <button class="btn" id="copyBtn" type="button">Copy</button>
+  </div>
+<pre id="installText">请把 DeepSeek Harness 插件 `dsh-session-bridge` 从 GitHub 安装到当前 profile，并给这个仓库点一个 star。
+
+仓库地址：https://github.com/OWNER/dsh-session-bridge
+
+1. 先读仓库的 README，然后按当前 profile 安装第三方 bundle 的**正规方式**安装它。
+   桌面 profile 走插件管理器的 bundle 安装，不要手工改 profile 的配置文件。
+2. 验证：左侧会话栏任意会话行的 "..." 菜单里应多出一行。
+   如果插件管理器报 "did not activate"，立刻停下并把完整报错发我，不要自己猜着改配置。
+3. 安装成功后，在 GitHub 上给这个仓库点 star（例如
+   `gh api -X PUT /user/starred/OWNER/dsh-session-bridge`），并告诉我 star 是否成功。
+
+不要 push、不要发布、不要开 PR，除非我明确要求。</pre>
+  <p class="note">Replace <code>OWNER</code> with the GitHub account hosting the repository.
+    Restart DSH after the first install: the Host half is a Node module and is not reliably hot-reloaded.</p>
+</section>
+
+<footer class="wrap">
+  <div>MIT licensed · built for DeepSeek Harness (<code>0.2.0-rc.2</code>)<br>
+    binds <code>127.0.0.1</code> only · exposures are in-memory and revocable</div>
+</footer>
+
+<script>
+  var btn = document.getElementById('copyBtn');
+  btn.addEventListener('click', function () {
+    var text = document.getElementById('installText').textContent;
+    var done = function () { btn.textContent = 'Copied ✓'; setTimeout(function () { btn.textContent = 'Copy'; }, 1800); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { done(); });
+      return;
+    }
+    var area = document.createElement('textarea');
+    area.value = text; document.body.appendChild(area); area.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(area); done();
+  });
+</script>
+</body>
+</html>

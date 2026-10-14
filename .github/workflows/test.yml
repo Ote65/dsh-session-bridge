@@ -1,0 +1,24 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: ['22.x', '24.x']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      # The plugin has no runtime dependencies: these suites are plain node.
+      - name: Unit suites (host + client)
+        run: node tests/run.mjs
+      - name: Live HTTP proof (mounts the real handlers on a real port)
+        run: node tests/live.mjs

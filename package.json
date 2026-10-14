@@ -1,0 +1,67 @@
+{
+  "name": "dsh-session-bridge",
+  "version": "0.2.0",
+  "description": "Expose one DeepSeek Harness session to another Agent (Codex, Trae, …) over a loopback HTTP bridge: a discovery document, the transcript, live status, the pending question, option answers and slash commands — plus a one-click handoff prompt copied to the clipboard.",
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "plugin",
+    "cordis",
+    "agent",
+    "agent-bridge",
+    "handoff",
+    "mcp",
+    "session",
+    "codex",
+    "trae"
+  ],
+  "license": "MIT",
+  "author": "dsh-session-bridge contributors",
+  "type": "module",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node tests/run.mjs",
+    "test:live": "node tests/live.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/REPLACE_WITH_YOUR_GITHUB_USER/dsh-session-bridge.git"
+  },
+  "homepage": "https://github.com/REPLACE_WITH_YOUR_GITHUB_USER/dsh-session-bridge#readme",
+  "bugs": {
+    "url": "https://github.com/REPLACE_WITH_YOUR_GITHUB_USER/dsh-session-bridge/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": []
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "~4.0.4"
+  },
+  "engines": {
+    "node": ">=22.19"
+  }
+}
